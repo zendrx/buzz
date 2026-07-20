@@ -24,7 +24,6 @@ pub const serialize = Header{ .name = "serialize", .path = "serialize.buzz" };
 pub const std = Header{ .name = "std", .path = "std.buzz" };
 pub const testing = Header{ .name = "test", .path = "testing.buzz" };
 pub const time = Header{ .name = "time", .path = "time.buzz" };
-pub const base64 = Header{ .name = "base64", .path = "base64.buzz" };
 
 /// Buzz headers bundled with the compiler/runtime and installed for tooling.
 pub const all = [_]Header{
@@ -44,5 +43,4 @@ pub const all = [_]Header{
     std,
     testing,
     time,
-    base64,
 };
