@@ -1,0 +1,55 @@
+namespace http;
+
+import "buzz:os";
+import "buzz:errors";
+
+/// HTTP Server
+export object Server {
+    /// @private
+    tcpServer: os\TcpServer,
+    /// @private
+    routes: {str: fun(Request) > Response} = {},
+
+    /// Creates a new HTTP server
+    static fun init(address: str, port: int, reuseAddr: bool) !> Server
+        !> errors\SocketError, errors\UnexpectedError => Server{
+        tcpServer = os\TcpServer.init(address, port, reuseAddr),
+    };
+
+    /// Register a route
+    mut fun route(path: str, handler: fun(Request) > Response) > void {
+        this.routes[path] = handler;
+    }
+
+    /// Start the server
+    fun listen() > void !> errors\SocketError, errors\ReadWriteError {
+        loop {
+            let client = this.tcpServer.accept() ! {
+                continue;
+            };
+            fib handleClient(client, this.routes) -> void;
+        }
+    }
+
+    /// Close the server
+    fun close() > void {
+        this.tcpServer.close();
+    }
+}
+
+/// HTTP Request (server-side)
+export object Request {
+    client: os\Socket,
+    method: str,
+    path: str,
+    headers: {str: str},
+    body: str?,
+    remoteAddr: str,
+}
+
+/// HTTP Response (server-side)
+export object Response {
+    status: int = 200,
+    headers: {str: str} = {},
+    body: str?,
+}
