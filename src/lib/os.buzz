@@ -177,3 +177,10 @@ export object TcpServer {
         this.serverSocket.close();
     }
 }
+
+
+/// Returns current os
+export extern fun os() > str;
+
+/// Returns cpu architecture
+export extern fun arch() > str;
