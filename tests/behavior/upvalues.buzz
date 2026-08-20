@@ -28,5 +28,8 @@ test "Closed upvalues can capture enum cases through GC" {
 
     gc\collect();
 
-    std\assert(true, message: "collecting discarded closures with enum captures does not corrupt GC");
+    std\assert(
+        true,
+        message: "collecting discarded closures with enum captures does not corrupt GC"
+    );
 }

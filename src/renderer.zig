@@ -147,7 +147,7 @@ pub const Renderer = struct {
     }
 
     inline fn renderNode(self: *Self, node: Ast.Node.Index, space: Space) Error!void {
-        return Self.renderers[@intFromEnum(self.ast.nodes.items(.tag)[node])](self, node, space);
+        return Self.renderers.get(self.ast.nodes.items(.tag)[node])(self, node, space);
     }
 
     /// Returns true when adding `additional_columns` would exceed the configured line width.
@@ -332,73 +332,75 @@ pub const Renderer = struct {
         return if (has_trailing_comma or item_count > 1) .comma else .dot;
     }
 
-    const renderers = [@typeInfo(Ast.Node.Tag).@"enum".fields.len]RenderNode{
-        renderAnonymousObjectType,
-        renderAnonymousEnumCase,
-        renderAs,
-        renderAsyncCall,
-        renderBinary,
-        renderBlock,
-        renderBlockExpression,
-        renderBoolean,
-        renderBreak,
-        renderCall,
-        renderContinue,
-        renderDot,
-        renderDoUntil,
-        renderEnum,
-        renderExport,
-        renderExpression,
-        renderFiberType,
-        renderDouble,
-        renderFor,
-        renderForceUnwrap,
-        renderForEach,
-        renderFunction,
-        renderFunctionType,
-        renderFunDeclaration,
-        renderGenericResolve,
-        renderGenericResolveType,
-        renderGenericType,
-        renderGrouping,
-        renderIf,
-        renderImport,
-        renderInteger,
-        renderIs,
-        renderList,
-        renderListType,
-        renderMap,
-        renderMapType,
-        renderMatch,
-        renderNamespace,
-        renderNamedVariable,
-        renderNull,
-        renderObjectDeclaration,
-        renderObjectInit,
-        renderOut,
-        renderPattern,
-        renderProtocolDeclaration,
-        renderRange,
-        renderResolve,
-        renderResume,
-        renderReturn,
-        renderSimpleType,
-        renderString,
-        renderStringLiteral,
-        renderSubscript,
-        renderThrow,
-        renderTry,
-        renderTypeExpression,
-        renderTypeOfExpression,
-        renderUnary,
-        renderUnwrap,
-        renderUserType,
-        renderVarDeclaration,
-        renderVoid,
-        renderWhile,
-        renderYield,
-        renderZdef,
-    };
+    const renderers = std.EnumArray(Ast.Node.Tag, RenderNode).init(
+        .{
+            .AnonymousObjectType = renderAnonymousObjectType,
+            .AnonymousEnumCase = renderAnonymousEnumCase,
+            .As = renderAs,
+            .AsyncCall = renderAsyncCall,
+            .Binary = renderBinary,
+            .Block = renderBlock,
+            .BlockExpression = renderBlockExpression,
+            .Boolean = renderBoolean,
+            .Break = renderBreak,
+            .Call = renderCall,
+            .Continue = renderContinue,
+            .Dot = renderDot,
+            .DoUntil = renderDoUntil,
+            .Enum = renderEnum,
+            .Export = renderExport,
+            .Expression = renderExpression,
+            .FiberType = renderFiberType,
+            .Double = renderDouble,
+            .For = renderFor,
+            .ForceUnwrap = renderForceUnwrap,
+            .ForEach = renderForEach,
+            .Function = renderFunction,
+            .FunctionType = renderFunctionType,
+            .FunDeclaration = renderFunDeclaration,
+            .GenericResolve = renderGenericResolve,
+            .GenericResolveType = renderGenericResolveType,
+            .GenericType = renderGenericType,
+            .Grouping = renderGrouping,
+            .If = renderIf,
+            .Import = renderImport,
+            .Integer = renderInteger,
+            .Is = renderIs,
+            .List = renderList,
+            .ListType = renderListType,
+            .Map = renderMap,
+            .MapType = renderMapType,
+            .Match = renderMatch,
+            .Namespace = renderNamespace,
+            .NamedVariable = renderNamedVariable,
+            .Null = renderNull,
+            .ObjectDeclaration = renderObjectDeclaration,
+            .ObjectInit = renderObjectInit,
+            .Out = renderOut,
+            .Pattern = renderPattern,
+            .ProtocolDeclaration = renderProtocolDeclaration,
+            .Range = renderRange,
+            .Resolve = renderResolve,
+            .Resume = renderResume,
+            .Return = renderReturn,
+            .SimpleType = renderSimpleType,
+            .String = renderString,
+            .StringLiteral = renderStringLiteral,
+            .Subscript = renderSubscript,
+            .Throw = renderThrow,
+            .Try = renderTry,
+            .TypeExpression = renderTypeExpression,
+            .TypeOfExpression = renderTypeOfExpression,
+            .Unary = renderUnary,
+            .Unwrap = renderUnwrap,
+            .UserType = renderUserType,
+            .VarDeclaration = renderVarDeclaration,
+            .Void = renderVoid,
+            .While = renderWhile,
+            .Yield = renderYield,
+            .Zdef = renderZdef,
+        },
+    );
 
     fn renderAnonymousEnumCase(self: *Self, node: Ast.Node.Index, space: Space) Error!void {
         const locations = self.ast.nodes.items(.location);
@@ -2792,6 +2794,7 @@ pub const Renderer = struct {
     fn renderForEach(self: *Self, node: Ast.Node.Index, space: Space) Error!void {
         const locations = self.ast.nodes.items(.location);
         const end_locations = self.ast.nodes.items(.end_location);
+        const utility_tokens = self.ast.tokens.items(.utility_token);
         const components = self.ast.nodes.items(.components)[node].ForEach;
 
         // foreach
@@ -2835,8 +2838,11 @@ pub const Renderer = struct {
         try self.renderNode(components.iterable, .None);
 
         // )
+        const tags = self.ast.tokens.items(.tag);
+        var right_paren = end_locations[components.iterable];
+        while (utility_tokens[right_paren] or tags[right_paren] != .RightParen) : (right_paren += 1) {}
         try self.renderExpectedToken(
-            end_locations[components.iterable] + 1,
+            right_paren,
             .RightParen,
             .Space,
         );

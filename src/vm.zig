@@ -301,6 +301,19 @@ pub const Fiber = struct {
         self.status = .Running;
     }
 
+    fn finishPreviousInstruction(vm: *VM, new_top: Value) void {
+        if (vm.readPreviousInstruction()) |full_instruction| {
+            if (VM.getCode(full_instruction) == .OP_FIBER_FOREACH) {
+                _ = vm.pop();
+
+                // Foreach scopes always reserve key, value, hidden state, and iterable.
+                const value_slot: *Value = @ptrCast(vm.current_fiber.stack_top - 3);
+
+                value_slot.* = new_top;
+            }
+        }
+    }
+
     pub fn yield(self: *Self, vm: *VM) void {
         std.debug.assert(self.status == .Running);
 
@@ -318,20 +331,7 @@ pub const Fiber = struct {
         self.status = .Yielded;
 
         // Do we need to finish OP_CODE that triggered the yield?
-        const full_instruction = vm.readPreviousInstruction();
-        if (full_instruction) |ufull_instruction| {
-            const instruction = VM.getCode(ufull_instruction);
-            switch (instruction) {
-                .OP_FIBER_FOREACH => {
-                    _ = vm.pop();
-
-                    const value_slot: *Value = @ptrCast(vm.current_fiber.stack_top - 2);
-
-                    value_slot.* = top;
-                },
-                else => {},
-            }
-        }
+        finishPreviousInstruction(vm, top);
     }
 
     pub fn @"resume"(self: *Self, vm: *VM) !void {
@@ -375,8 +375,6 @@ pub const Fiber = struct {
 
                 vm.current_fiber = parent_fiber;
                 vm.push(top);
-
-                // FIXME: but this means we can do several `resolve fiber`
             },
             .Running => unreachable,
         }
@@ -403,21 +401,7 @@ pub const Fiber = struct {
         }
 
         // Do we need to finish OP_CODE that triggered the yield?
-        const full_instruction = vm.readPreviousInstruction();
-        if (full_instruction) |ufull_instruction| {
-            const instruction = VM.getCode(ufull_instruction);
-            switch (instruction) {
-                .OP_FIBER_FOREACH => {
-                    // We don't care about the returned value
-                    _ = vm.pop();
-
-                    const value_slot: *Value = @ptrCast(vm.current_fiber.stack_top - 2);
-
-                    value_slot.* = Value.Null;
-                },
-                else => {},
-            }
-        }
+        finishPreviousInstruction(vm, .Sentinel);
     }
 };
 
@@ -701,145 +685,148 @@ pub const VM = struct {
     const OpFn = *const fn (*Self, *CallFrame, u32, Chunk.OpCode, u24) void;
 
     // WARNING: same order as Chunk.OpCode enum
-    const op_table = [@typeInfo(Chunk.OpCode).@"enum".fields.len]OpFn{
-        OP_CONSTANT,
-        OP_NULL,
-        OP_VOID,
-        OP_TRUE,
-        OP_FALSE,
-        OP_POP,
-        OP_COPY,
-        OP_CLONE,
+    const op_table = std.EnumArray(Chunk.OpCode, OpFn).init(
+        .{
+            .OP_CONSTANT = OP_CONSTANT,
+            .OP_NULL = OP_NULL,
+            .OP_SENTINEL = OP_SENTINEL,
+            .OP_VOID = OP_VOID,
+            .OP_TRUE = OP_TRUE,
+            .OP_FALSE = OP_FALSE,
+            .OP_POP = OP_POP,
+            .OP_COPY = OP_COPY,
+            .OP_CLONE = OP_CLONE,
 
-        OP_DEFINE_GLOBAL,
-        OP_GET_GLOBAL,
-        OP_SET_GLOBAL,
-        OP_GET_LOCAL,
-        OP_SET_LOCAL,
-        OP_GET_UPVALUE,
-        OP_SET_UPVALUE,
-        OP_GET_LIST_SUBSCRIPT,
-        OP_GET_MAP_SUBSCRIPT,
-        OP_GET_STRING_SUBSCRIPT,
-        OP_SET_LIST_SUBSCRIPT,
-        OP_SET_MAP_SUBSCRIPT,
+            .OP_DEFINE_GLOBAL = OP_DEFINE_GLOBAL,
+            .OP_GET_GLOBAL = OP_GET_GLOBAL,
+            .OP_SET_GLOBAL = OP_SET_GLOBAL,
+            .OP_GET_LOCAL = OP_GET_LOCAL,
+            .OP_SET_LOCAL = OP_SET_LOCAL,
+            .OP_GET_UPVALUE = OP_GET_UPVALUE,
+            .OP_SET_UPVALUE = OP_SET_UPVALUE,
+            .OP_GET_LIST_SUBSCRIPT = OP_GET_LIST_SUBSCRIPT,
+            .OP_GET_MAP_SUBSCRIPT = OP_GET_MAP_SUBSCRIPT,
+            .OP_GET_STRING_SUBSCRIPT = OP_GET_STRING_SUBSCRIPT,
+            .OP_SET_LIST_SUBSCRIPT = OP_SET_LIST_SUBSCRIPT,
+            .OP_SET_MAP_SUBSCRIPT = OP_SET_MAP_SUBSCRIPT,
 
-        OP_EQUAL,
-        OP_IS,
-        OP_GREATER,
-        OP_LESS,
-        OP_ADD_F,
-        OP_ADD_I,
-        OP_ADD_STRING,
-        OP_ADD_LIST,
-        OP_ADD_MAP,
-        OP_SUBTRACT_I,
-        OP_SUBTRACT_F,
-        OP_MULTIPLY_I,
-        OP_MULTIPLY_F,
-        OP_DIVIDE_I,
-        OP_DIVIDE_F,
-        OP_MOD_I,
-        OP_MOD_F,
-        OP_BNOT,
-        OP_BAND,
-        OP_BOR,
-        OP_XOR,
-        OP_SHL,
-        OP_SHR,
+            .OP_EQUAL = OP_EQUAL,
+            .OP_IS = OP_IS,
+            .OP_GREATER = OP_GREATER,
+            .OP_LESS = OP_LESS,
+            .OP_ADD_F = OP_ADD_F,
+            .OP_ADD_I = OP_ADD_I,
+            .OP_ADD_STRING = OP_ADD_STRING,
+            .OP_ADD_LIST = OP_ADD_LIST,
+            .OP_ADD_MAP = OP_ADD_MAP,
+            .OP_SUBTRACT_I = OP_SUBTRACT_I,
+            .OP_SUBTRACT_F = OP_SUBTRACT_F,
+            .OP_MULTIPLY_I = OP_MULTIPLY_I,
+            .OP_MULTIPLY_F = OP_MULTIPLY_F,
+            .OP_DIVIDE_I = OP_DIVIDE_I,
+            .OP_DIVIDE_F = OP_DIVIDE_F,
+            .OP_MOD_I = OP_MOD_I,
+            .OP_MOD_F = OP_MOD_F,
+            .OP_BNOT = OP_BNOT,
+            .OP_BAND = OP_BAND,
+            .OP_BOR = OP_BOR,
+            .OP_XOR = OP_XOR,
+            .OP_SHL = OP_SHL,
+            .OP_SHR = OP_SHR,
 
-        OP_UNWRAP,
+            .OP_UNWRAP = OP_UNWRAP,
 
-        OP_NOT,
-        OP_NEGATE_I,
-        OP_NEGATE_F,
+            .OP_NOT = OP_NOT,
+            .OP_NEGATE_I = OP_NEGATE_I,
+            .OP_NEGATE_F = OP_NEGATE_F,
 
-        OP_SWAP,
-        OP_JUMP,
-        OP_JUMP_IF_FALSE,
-        OP_JUMP_IF_NOT_NULL,
-        OP_LOOP,
-        OP_STRING_FOREACH,
-        OP_LIST_FOREACH,
-        OP_RANGE_FOREACH,
-        OP_ENUM_FOREACH,
-        OP_MAP_FOREACH,
-        OP_FIBER_FOREACH,
+            .OP_SWAP = OP_SWAP,
+            .OP_JUMP = OP_JUMP,
+            .OP_JUMP_IF_FALSE = OP_JUMP_IF_FALSE,
+            .OP_JUMP_IF_NOT_NULL = OP_JUMP_IF_NOT_NULL,
+            .OP_LOOP = OP_LOOP,
+            .OP_STRING_FOREACH = OP_STRING_FOREACH,
+            .OP_LIST_FOREACH = OP_LIST_FOREACH,
+            .OP_RANGE_FOREACH = OP_RANGE_FOREACH,
+            .OP_ENUM_FOREACH = OP_ENUM_FOREACH,
+            .OP_MAP_FOREACH = OP_MAP_FOREACH,
+            .OP_FIBER_FOREACH = OP_FIBER_FOREACH,
 
-        OP_CALL,
-        OP_TAIL_CALL,
-        OP_CALL_INSTANCE_PROPERTY,
-        OP_TAIL_CALL_INSTANCE_PROPERTY,
-        OP_INSTANCE_INVOKE,
-        OP_INSTANCE_TAIL_INVOKE,
-        OP_PROTOCOL_INVOKE,
-        OP_PROTOCOL_TAIL_INVOKE,
-        OP_STRING_INVOKE,
-        OP_PATTERN_INVOKE,
-        OP_FIBER_INVOKE,
-        OP_LIST_INVOKE,
-        OP_MAP_INVOKE,
-        OP_RANGE_INVOKE,
+            .OP_CALL = OP_CALL,
+            .OP_TAIL_CALL = OP_TAIL_CALL,
+            .OP_CALL_INSTANCE_PROPERTY = OP_CALL_INSTANCE_PROPERTY,
+            .OP_TAIL_CALL_INSTANCE_PROPERTY = OP_TAIL_CALL_INSTANCE_PROPERTY,
+            .OP_INSTANCE_INVOKE = OP_INSTANCE_INVOKE,
+            .OP_INSTANCE_TAIL_INVOKE = OP_INSTANCE_TAIL_INVOKE,
+            .OP_PROTOCOL_INVOKE = OP_PROTOCOL_INVOKE,
+            .OP_PROTOCOL_TAIL_INVOKE = OP_PROTOCOL_TAIL_INVOKE,
+            .OP_STRING_INVOKE = OP_STRING_INVOKE,
+            .OP_PATTERN_INVOKE = OP_PATTERN_INVOKE,
+            .OP_FIBER_INVOKE = OP_FIBER_INVOKE,
+            .OP_LIST_INVOKE = OP_LIST_INVOKE,
+            .OP_MAP_INVOKE = OP_MAP_INVOKE,
+            .OP_RANGE_INVOKE = OP_RANGE_INVOKE,
 
-        OP_CLOSURE,
-        OP_CLOSE_UPVALUE,
+            .OP_CLOSURE = OP_CLOSURE,
+            .OP_CLOSE_UPVALUE = OP_CLOSE_UPVALUE,
 
-        OP_FIBER,
-        OP_RESUME,
-        OP_RESOLVE,
-        OP_YIELD,
+            .OP_FIBER = OP_FIBER,
+            .OP_RESUME = OP_RESUME,
+            .OP_RESOLVE = OP_RESOLVE,
+            .OP_YIELD = OP_YIELD,
 
-        OP_TRY,
-        OP_TRY_END,
-        OP_THROW,
+            .OP_TRY = OP_TRY,
+            .OP_TRY_END = OP_TRY_END,
+            .OP_THROW = OP_THROW,
 
-        OP_RETURN,
+            .OP_RETURN = OP_RETURN,
 
-        OP_OBJECT,
-        OP_INSTANCE,
-        OP_FCONTAINER_INSTANCE,
-        OP_PROPERTY,
-        OP_OBJECT_DEFAULT,
-        OP_GET_OBJECT_PROPERTY,
-        OP_GET_INSTANCE_PROPERTY,
-        OP_GET_INSTANCE_METHOD,
-        OP_GET_PROTOCOL_METHOD,
-        OP_GET_FCONTAINER_INSTANCE_PROPERTY,
-        OP_GET_LIST_PROPERTY,
-        OP_GET_MAP_PROPERTY,
-        OP_GET_STRING_PROPERTY,
-        OP_GET_PATTERN_PROPERTY,
-        OP_GET_FIBER_PROPERTY,
-        OP_GET_RANGE_PROPERTY,
-        OP_SET_OBJECT_PROPERTY,
-        OP_SET_INSTANCE_PROPERTY,
-        OP_SET_FCONTAINER_INSTANCE_PROPERTY,
+            .OP_OBJECT = OP_OBJECT,
+            .OP_INSTANCE = OP_INSTANCE,
+            .OP_FCONTAINER_INSTANCE = OP_FCONTAINER_INSTANCE,
+            .OP_PROPERTY = OP_PROPERTY,
+            .OP_OBJECT_DEFAULT = OP_OBJECT_DEFAULT,
+            .OP_GET_OBJECT_PROPERTY = OP_GET_OBJECT_PROPERTY,
+            .OP_GET_INSTANCE_PROPERTY = OP_GET_INSTANCE_PROPERTY,
+            .OP_GET_INSTANCE_METHOD = OP_GET_INSTANCE_METHOD,
+            .OP_GET_PROTOCOL_METHOD = OP_GET_PROTOCOL_METHOD,
+            .OP_GET_FCONTAINER_INSTANCE_PROPERTY = OP_GET_FCONTAINER_INSTANCE_PROPERTY,
+            .OP_GET_LIST_PROPERTY = OP_GET_LIST_PROPERTY,
+            .OP_GET_MAP_PROPERTY = OP_GET_MAP_PROPERTY,
+            .OP_GET_STRING_PROPERTY = OP_GET_STRING_PROPERTY,
+            .OP_GET_PATTERN_PROPERTY = OP_GET_PATTERN_PROPERTY,
+            .OP_GET_FIBER_PROPERTY = OP_GET_FIBER_PROPERTY,
+            .OP_GET_RANGE_PROPERTY = OP_GET_RANGE_PROPERTY,
+            .OP_SET_OBJECT_PROPERTY = OP_SET_OBJECT_PROPERTY,
+            .OP_SET_INSTANCE_PROPERTY = OP_SET_INSTANCE_PROPERTY,
+            .OP_SET_FCONTAINER_INSTANCE_PROPERTY = OP_SET_FCONTAINER_INSTANCE_PROPERTY,
 
-        OP_GET_ENUM_CASE,
-        OP_GET_ENUM_CASE_VALUE,
-        OP_GET_ENUM_CASE_FROM_VALUE,
+            .OP_GET_ENUM_CASE = OP_GET_ENUM_CASE,
+            .OP_GET_ENUM_CASE_VALUE = OP_GET_ENUM_CASE_VALUE,
+            .OP_GET_ENUM_CASE_FROM_VALUE = OP_GET_ENUM_CASE_FROM_VALUE,
 
-        OP_LIST,
-        OP_RANGE,
-        OP_LIST_APPEND,
+            .OP_LIST = OP_LIST,
+            .OP_RANGE = OP_RANGE,
+            .OP_LIST_APPEND = OP_LIST_APPEND,
 
-        OP_MAP,
-        OP_SET_MAP,
+            .OP_MAP = OP_MAP,
+            .OP_SET_MAP = OP_SET_MAP,
 
-        OP_EXPORT,
-        OP_IMPORT,
+            .OP_EXPORT = OP_EXPORT,
+            .OP_IMPORT = OP_IMPORT,
 
-        OP_TO_STRING,
+            .OP_TO_STRING = OP_TO_STRING,
 
-        OP_TYPEOF,
+            .OP_TYPEOF = OP_TYPEOF,
 
-        OP_HOTSPOT,
-        OP_HOTSPOT_CALL,
+            .OP_HOTSPOT = OP_HOTSPOT,
+            .OP_HOTSPOT_CALL = OP_HOTSPOT_CALL,
 
-        OP_DBG_LOCAL_ENTER,
-        OP_DBG_LOCAL_EXIT,
-        OP_DBG_GLOBAL_DEFINE,
-    };
+            .OP_DBG_LOCAL_ENTER = OP_DBG_LOCAL_ENTER,
+            .OP_DBG_LOCAL_EXIT = OP_DBG_LOCAL_EXIT,
+            .OP_DBG_GLOBAL_DEFINE = OP_DBG_GLOBAL_DEFINE,
+        },
+    );
 
     fn dispatch(self: *Self, current_frame: *CallFrame, full_instruction: u32, instruction: Chunk.OpCode, arg: u24) void {
         if (BuildOptions.debug_stack) {
@@ -921,7 +908,7 @@ pub const VM = struct {
                 self.debugger.?.session.?.run_state == .paused)
                 OP_NOOP
             else
-                op_table[@intFromEnum(instruction)],
+                op_table.get(instruction),
             .{
                 self,
                 current_frame,
@@ -960,6 +947,23 @@ pub const VM = struct {
 
     fn OP_NULL(self: *Self, frame: *CallFrame, _: u32, _: Chunk.OpCode, _: u24) void {
         self.push(.Null);
+
+        const next_full_instruction = self.readInstruction(frame);
+        @call(
+            dispatch_call_modifier,
+            dispatch,
+            .{
+                self,
+                frame,
+                next_full_instruction,
+                getCode(next_full_instruction),
+                getArg(next_full_instruction),
+            },
+        );
+    }
+
+    fn OP_SENTINEL(self: *Self, frame: *CallFrame, _: u32, _: Chunk.OpCode, _: u24) void {
+        self.push(.Sentinel);
 
         const next_full_instruction = self.readInstruction(frame);
         @call(
@@ -4284,8 +4288,8 @@ pub const VM = struct {
     }
 
     fn OP_STRING_FOREACH(self: *Self, _: *CallFrame, _: u32, _: Chunk.OpCode, _: u24) void {
-        const key_slot: *Value = @ptrCast(self.current_fiber.stack_top - 3);
-        const value_slot: *Value = @ptrCast(self.current_fiber.stack_top - 2);
+        const key_slot: *Value = @ptrCast(self.current_fiber.stack_top - 4);
+        const value_slot: *Value = @ptrCast(self.current_fiber.stack_top - 3);
         const str = self.peek(0).obj().access(obj.ObjString, .String, self.gc).?;
 
         key_slot.* = if (str.next(
@@ -4300,7 +4304,7 @@ pub const VM = struct {
         }) |new_index|
             .fromInteger(new_index)
         else
-            .Null;
+            .Sentinel;
 
         // Set new value
         if (key_slot.*.isInteger()) {
@@ -4330,13 +4334,12 @@ pub const VM = struct {
     }
 
     fn OP_LIST_FOREACH(self: *Self, _: *CallFrame, _: u32, _: Chunk.OpCode, _: u24) void {
-        var key_slot: *Value = @ptrCast(self.current_fiber.stack_top - 3);
-        const value_slot: *Value = @ptrCast(self.current_fiber.stack_top - 2);
+        var key_slot: *Value = @ptrCast(self.current_fiber.stack_top - 4);
+        const value_slot: *Value = @ptrCast(self.current_fiber.stack_top - 3);
         var list = self.peek(0).obj().access(obj.ObjList, .List, self.gc).?;
 
         // Get next index
         key_slot.* = if (list.rawNext(
-            self,
             if (key_slot.*.isNull()) null else key_slot.integer(),
         ) catch {
             self.panic("Out of memory");
@@ -4344,7 +4347,7 @@ pub const VM = struct {
         }) |new_index|
             .fromInteger(new_index)
         else
-            .Null;
+            .Sentinel;
 
         // Set new value
         if (key_slot.*.isInteger()) {
@@ -4367,18 +4370,18 @@ pub const VM = struct {
     }
 
     fn OP_RANGE_FOREACH(self: *Self, _: *CallFrame, _: u32, _: Chunk.OpCode, _: u24) void {
-        const value_slot: *Value = @ptrCast(self.current_fiber.stack_top - 2);
+        const value_slot: *Value = @ptrCast(self.current_fiber.stack_top - 3);
         const range = self.peek(0).obj().access(obj.ObjRange, .Range, self.gc).?;
 
         if (value_slot.integerOrNull()) |index| {
             if (range.low < range.high) {
                 value_slot.* = if (index + 1 >= range.high)
-                    .Null
+                    .Sentinel
                 else
                     .fromInteger(index + 1);
             } else {
                 value_slot.* = if (index - 1 <= range.high)
-                    .Null
+                    .Sentinel
                 else
                     .fromInteger(index - 1);
             }
@@ -4402,7 +4405,7 @@ pub const VM = struct {
     }
 
     fn OP_ENUM_FOREACH(self: *Self, _: *CallFrame, _: u32, _: Chunk.OpCode, _: u24) void {
-        var value_slot: *Value = @ptrCast(self.current_fiber.stack_top - 2);
+        var value_slot: *Value = @ptrCast(self.current_fiber.stack_top - 3);
         const enum_case = if (value_slot.*.isNull())
             null
         else
@@ -4414,7 +4417,7 @@ pub const VM = struct {
             self.panic("Out of memory");
             unreachable;
         };
-        value_slot.* = (if (next_case) |new_case| .fromObj(new_case.toObj()) else .Null);
+        value_slot.* = if (next_case) |new_case| .fromObj(new_case.toObj()) else .Sentinel;
 
         const frame = self.currentFrame().?;
         const next_full_instruction = self.readInstruction(frame);
@@ -4432,16 +4435,44 @@ pub const VM = struct {
     }
 
     fn OP_MAP_FOREACH(self: *Self, _: *CallFrame, _: u32, _: Chunk.OpCode, _: u24) void {
-        const key_slot: *Value = @ptrCast(self.current_fiber.stack_top - 3);
-        const value_slot: *Value = @ptrCast(self.current_fiber.stack_top - 2);
+        const key_slot: *Value = @ptrCast(self.current_fiber.stack_top - 4);
+        const value_slot: *Value = @ptrCast(self.current_fiber.stack_top - 3);
+        const index_slot: *Value = @ptrCast(self.current_fiber.stack_top - 2);
         var map: *obj.ObjMap = self.peek(0).obj().access(obj.ObjMap, .Map, self.gc).?;
-        const current_key = if (!key_slot.*.isNull()) key_slot.* else null;
 
-        const next_key = map.rawNext(current_key);
-        key_slot.* = if (next_key) |unext_key| unext_key else .Null;
+        std.debug.assert(index_slot.*.isDouble());
 
-        if (next_key) |unext_key| {
-            value_slot.* = map.map.get(unext_key) orelse .Null;
+        const current_index: i64 = @intFromFloat(index_slot.*.double());
+        const next_index: i64 = current_index + 1;
+        std.debug.assert(next_index >= 0);
+
+        if (@as(u64, @intCast(next_index)) >= Value.MaxExactDoubleInteger) {
+            self.throw(
+                Error.Custom,
+                (self.gc.copyString("Map foreach index exceeded maximum exact double integer (2^53)") catch {
+                    self.panic("Out of memory");
+                    unreachable;
+                }).toValue(),
+                null,
+                null,
+            ) catch |err| {
+                switch (err) {
+                    Error.RuntimeError => return,
+                    else => {
+                        self.panic("Out of memory");
+                        unreachable;
+                    },
+                }
+            };
+        }
+
+        const next_index_usize: usize = @intCast(next_index);
+        if (next_index_usize >= map.map.count()) {
+            key_slot.* = .Sentinel;
+        } else {
+            key_slot.* = map.map.keys()[next_index_usize];
+            value_slot.* = map.map.values()[next_index_usize];
+            index_slot.* = .fromDouble(@floatFromInt(next_index));
         }
 
         const frame = self.currentFrame().?;
@@ -4460,11 +4491,11 @@ pub const VM = struct {
     }
 
     fn OP_FIBER_FOREACH(self: *Self, _: *CallFrame, _: u32, _: Chunk.OpCode, _: u24) void {
-        const value_slot: *Value = @ptrCast(self.current_fiber.stack_top - 2);
+        const value_slot: *Value = @ptrCast(self.current_fiber.stack_top - 3);
         var fiber = self.peek(0).obj().access(obj.ObjFiber, .Fiber, self.gc).?;
 
         if (fiber.fiber.status == .Over) {
-            value_slot.* = .Null;
+            value_slot.* = .Sentinel;
         } else {
             fiber.fiber.@"resume"(self) catch {
                 self.panic("Out of memory");
@@ -4809,7 +4840,7 @@ pub const VM = struct {
                 null;
         }
 
-        op_table[@intFromEnum(next_instruction)](
+        op_table.get(next_instruction)(
             self,
             next_current_frame,
             next_full_instruction,

@@ -745,121 +745,60 @@ else
         "/usr/local/lib/lib?.!",
     };
 
-const rules = [@typeInfo(Token.Tag).@"enum".fields.len]ParseRule{
-    .{ .prefix = list, .infix = subscript, .precedence = .Call }, // LeftBracket
-    .{}, // RightBracket
-    .{ .prefix = grouping, .infix = call, .precedence = .Call }, // LeftParen
-    .{}, // RightParen
-    .{ .prefix = map, .infix = objectInit, .precedence = .Primary }, // LeftBrace
-    .{}, // RightBrace
-    .{ .prefix = anonymousEnumCaseOrObjectInit, .infix = dot, .precedence = .Call }, // Dot
-    .{}, // Comma
-    .{}, // Semicolon
-    .{ .infix = binary, .precedence = .Comparison }, // Greater
-    .{ .prefix = typeExpression, .infix = binary, .precedence = .Comparison }, // Less
-    .{ .infix = binary, .precedence = .Term }, // Plus
-    .{ .prefix = unary, .infix = binary, .precedence = .Term }, // Minus
-    .{ .infix = binary, .precedence = .Factor }, // Star
-    .{ .infix = binary, .precedence = .Factor }, // Slash
-    .{}, // AntiSlash
-    .{ .infix = binary, .precedence = .Factor }, // Percent
-    .{ .infix = gracefulUnwrap, .precedence = .Call }, // Question
-    .{ .prefix = unary, .infix = forceUnwrap, .precedence = .Call }, // Bang
-    .{}, // Colon
-    .{ .infix = genericResolve, .precedence = .Call }, // DoubleColon
-    .{}, // Equal
-    .{ .infix = binary, .precedence = .Equality }, // EqualEqual
-    .{ .infix = binary, .precedence = .Equality }, // BangEqual
-    .{}, // BangGreater
-    .{ .infix = binary, .precedence = .Comparison }, // GreaterEqual
-    .{ .infix = binary, .precedence = .Comparison }, // LessEqual
-    .{ .infix = binary, .precedence = .NullCoalescing }, // QuestionQuestion
-    .{}, // Arrow
-    .{}, // DoubleArrow
-    .{ .prefix = literal }, // True
-    .{ .prefix = literal }, // False
-    .{ .prefix = literal }, // Null
-    .{}, // Str
-    .{}, // Ud
-    .{}, // Int
-    .{}, // Double
-    .{}, // Type
-    .{}, // Bool
-    .{}, // Function
-    .{ .infix = binary, .precedence = .Shift }, // ShiftRight
-    .{ .infix = binary, .precedence = .Shift }, // ShiftLeft
-    .{ .infix = binary, .precedence = .Bitwise }, // Xor
-    .{ .infix = binary, .precedence = .Bitwise }, // Bor
-    .{ .prefix = unary, .precedence = .Term }, // Bnot
-    .{ .infix = @"or", .precedence = .Or }, // Or
-    .{ .infix = @"and", .precedence = .And }, // And
-    .{}, // Return
-    .{ .prefix = inlineIf }, // If
-    .{}, // Else
-    .{}, // Do
-    .{}, // Until
-    .{}, // While
-    .{}, // For
-    .{}, // ForEach
-    .{}, // Break
-    .{}, // Continue
-    .{}, // In
-    .{ .infix = is, .precedence = .IsAs }, // Is
-    .{ .prefix = literal }, // Integer
-    .{ .prefix = literal }, // DoubleValue
-    .{ .prefix = string }, // String
-    .{ .prefix = variable }, // Identifier
-    .{ .prefix = fun }, // Fun
-    .{}, // Object
-    .{}, // Obj
-    .{}, // Protocol
-    .{}, // Enum
-    .{}, // Throw
-    .{}, // Try
-    .{}, // Catch
-    .{}, // Test
-    .{}, // Import
-    .{}, // Export
-    .{}, // Final
-    .{}, // Static
-    .{ .prefix = blockExpression }, // From
-    .{}, // As
-    .{ .infix = as, .precedence = .IsAs }, // AsQuestion
-    .{ .infix = as, .precedence = .IsAs }, // AsBang
-    .{}, // Extern
-    .{}, // Eof
-    .{}, // Error
-    .{ .prefix = literal }, // Void
-    .{}, // Docblock
-    .{ .prefix = pattern }, // Pattern
-    .{}, // pat
-    .{}, // fib
-    .{ .prefix = asyncCall, .infix = binary, .precedence = .Term }, // &
-    .{ .prefix = resumeFiber, .precedence = .Primary }, // resume
-    .{ .prefix = resolveFiber, .precedence = .Primary }, // resolve
-    .{ .prefix = yield, .precedence = .Primary }, // yield
-    .{ .infix = range, .precedence = .Primary }, // ..
-    .{}, // any
-    .{}, // zdef
-    .{ .prefix = typeOfExpression, .precedence = .Unary }, // typeof
-    .{}, // var
-    .{}, // out
-    .{}, // namespace
-    .{}, // rg
-    .{ .prefix = mutableExpression }, // mut
-    .{}, // PlusEqual
-    .{}, // MinusEqual
-    .{}, // StarEqual
-    .{}, // SlashEqual
-    .{}, // ShiftRightEqual
-    .{}, // ShiftLeftEqual
-    .{}, // XorEqual
-    .{}, // BorEqual
-    .{}, // BnotEqual
-    .{}, // AmpersandEqual
-    .{}, // PercentEqual
-    .{ .prefix = matchExpression }, // Match
-};
+const rules = std.EnumArray(Token.Tag, ParseRule).initDefault(
+    .{},
+    .{
+        .LeftBracket = .{ .prefix = list, .infix = subscript, .precedence = .Call },
+        .LeftParen = .{ .prefix = grouping, .infix = call, .precedence = .Call },
+        .LeftBrace = .{ .prefix = map, .infix = objectInit, .precedence = .Primary },
+        .Dot = .{ .prefix = anonymousEnumCaseOrObjectInit, .infix = dot, .precedence = .Call },
+        .Greater = .{ .infix = binary, .precedence = .Comparison },
+        .Less = .{ .prefix = typeExpression, .infix = binary, .precedence = .Comparison },
+        .Plus = .{ .infix = binary, .precedence = .Term },
+        .Minus = .{ .prefix = unary, .infix = binary, .precedence = .Term },
+        .Star = .{ .infix = binary, .precedence = .Factor },
+        .Slash = .{ .infix = binary, .precedence = .Factor },
+        .Percent = .{ .infix = binary, .precedence = .Factor },
+        .Question = .{ .infix = gracefulUnwrap, .precedence = .Call },
+        .Bang = .{ .prefix = unary, .infix = forceUnwrap, .precedence = .Call },
+        .DoubleColon = .{ .infix = genericResolve, .precedence = .Call },
+        .EqualEqual = .{ .infix = binary, .precedence = .Equality },
+        .BangEqual = .{ .infix = binary, .precedence = .Equality },
+        .GreaterEqual = .{ .infix = binary, .precedence = .Comparison },
+        .LessEqual = .{ .infix = binary, .precedence = .Comparison },
+        .QuestionQuestion = .{ .infix = binary, .precedence = .NullCoalescing },
+        .True = .{ .prefix = literal },
+        .False = .{ .prefix = literal },
+        .Null = .{ .prefix = literal },
+        .ShiftRight = .{ .infix = binary, .precedence = .Shift },
+        .ShiftLeft = .{ .infix = binary, .precedence = .Shift },
+        .Xor = .{ .infix = binary, .precedence = .Bitwise },
+        .Bor = .{ .infix = binary, .precedence = .Bitwise },
+        .Bnot = .{ .prefix = unary, .precedence = .Term },
+        .Or = .{ .infix = @"or", .precedence = .Or },
+        .And = .{ .infix = @"and", .precedence = .And },
+        .If = .{ .prefix = inlineIf },
+        .Is = .{ .infix = is, .precedence = .IsAs },
+        .IntegerValue = .{ .prefix = literal },
+        .DoubleValue = .{ .prefix = literal },
+        .String = .{ .prefix = string },
+        .Identifier = .{ .prefix = variable },
+        .Fun = .{ .prefix = fun },
+        .From = .{ .prefix = blockExpression },
+        .AsQuestion = .{ .infix = as, .precedence = .IsAs },
+        .AsBang = .{ .infix = as, .precedence = .IsAs },
+        .Void = .{ .prefix = literal },
+        .Pattern = .{ .prefix = pattern },
+        .Ampersand = .{ .prefix = asyncCall, .infix = binary, .precedence = .Term },
+        .Resume = .{ .prefix = resumeFiber, .precedence = .Primary },
+        .Resolve = .{ .prefix = resolveFiber, .precedence = .Primary },
+        .Yield = .{ .prefix = yield, .precedence = .Primary },
+        .Spread = .{ .infix = range, .precedence = .Primary },
+        .TypeOf = .{ .prefix = typeOfExpression, .precedence = .Unary },
+        .Mut = .{ .prefix = mutableExpression },
+        .Match = .{ .prefix = matchExpression },
+    },
+);
 
 pub fn reportErrorAtNode(self: *Self, error_type: Reporter.Error, node: Ast.Node.Index, comptime fmt: []const u8, args: anytype) void {
     self.reporter.reportErrorFmt(
@@ -1631,10 +1570,6 @@ fn closeScope(self: *Self, upto_depth: usize) ![]Ast.Close {
     return try closing.toOwnedSlice(self.gc.allocator);
 }
 
-inline fn getRule(token: Token.Tag) ParseRule {
-    return rules[@intFromEnum(token)];
-}
-
 fn parsePrecedence(self: *Self, precedence: Precedence, hanging: bool) Error!Ast.Node.Index {
     // In case we are already parsing an expression, the current unwrap chain should not impact deeper expressions
     // Exemple: canBeNull?.aMap[expression] <- here `expression` should not be transformed into an optional
@@ -1658,7 +1593,7 @@ fn parsePrecedence(self: *Self, precedence: Precedence, hanging: bool) Error!Ast
         _ = try self.advance();
     }
 
-    const prefixRule: ?ParseFn = getRule(self.ast.tokens.items(.tag)[self.current_token.? - 1]).prefix;
+    const prefixRule: ?ParseFn = rules.get(self.ast.tokens.items(.tag)[self.current_token.? - 1]).prefix;
     if (prefixRule == null) {
         const location = self.ast.tokens.get(self.current_token.? - 1);
         self.reporter.reportErrorAt(
@@ -1675,12 +1610,12 @@ fn parsePrecedence(self: *Self, precedence: Precedence, hanging: bool) Error!Ast
     const canAssign = @intFromEnum(precedence) <= @intFromEnum(Precedence.Assignment);
     var node = try prefixRule.?(self, canAssign);
 
-    while (@intFromEnum(getRule(self.ast.tokens.items(.tag)[self.current_token.?]).precedence) >= @intFromEnum(precedence)) {
+    while (@intFromEnum(rules.get(self.ast.tokens.items(.tag)[self.current_token.?]).precedence) >= @intFromEnum(precedence)) {
         // Patch optional jumps
         if (self.opt_jumps) |*jumps| {
             std.debug.assert(jumps.items.len > 0);
             // If precedence is less than the precedence that started the nullable chain, stop the chain there
-            if (@intFromEnum(getRule(self.ast.tokens.items(.tag)[self.current_token.?]).precedence) < @intFromEnum(jumps.items[0])) {
+            if (@intFromEnum(rules.get(self.ast.tokens.items(.tag)[self.current_token.?]).precedence) < @intFromEnum(jumps.items[0])) {
                 jumps.deinit(self.gc.allocator);
                 self.opt_jumps = null;
 
@@ -1695,7 +1630,7 @@ fn parsePrecedence(self: *Self, precedence: Precedence, hanging: bool) Error!Ast
 
         _ = try self.advance();
 
-        if (getRule(self.ast.tokens.items(.tag)[self.current_token.? - 1]).infix) |infixRule| {
+        if (rules.get(self.ast.tokens.items(.tag)[self.current_token.? - 1]).infix) |infixRule| {
             node = try infixRule(self, canAssign, node);
         } else {
             const location = self.ast.tokens.get(self.current_token.? - 1);
@@ -3447,16 +3382,6 @@ fn parseFiberType(self: *Self, generic_types: ?std.AutoArrayHashMapUnmanaged(*ob
     const return_type = try self.parseTypeDef(generic_types, true);
     try self.consume(.Comma, "Expected `,` after fiber return type");
     const yield_type = try self.parseTypeDef(generic_types, true);
-
-    const yield_type_def = self.ast.nodes.items(.type_def)[yield_type].?;
-    if (!yield_type_def.optional and yield_type_def.def_type != .Void) {
-        self.reportErrorAtNode(
-            .yield_type,
-            yield_type,
-            "Expected optional type or void",
-            .{},
-        );
-    }
 
     try self.consume(.Greater, "Expected `>` after fiber yield type");
 
@@ -5998,7 +5923,7 @@ fn unwrap(self: *Self, force: bool, unwrapped: Ast.Node.Index) Error!Ast.Node.In
 
         try self.opt_jumps.?.append(
             self.gc.allocator,
-            getRule(
+            rules.get(
                 self.ast.tokens.items(.tag)[self.current_token.?],
             ).precedence,
         );
@@ -6939,18 +6864,7 @@ fn function(
             function_typedef.resolved_type.?.Function.generic_types,
             true,
         );
-        const yield_type = self.ast.nodes.items(.type_def)[yield_type_node].?;
-
-        if (!yield_type.optional and yield_type.def_type != .Void) {
-            self.reportErrorAtNode(
-                .yield_type,
-                yield_type_node,
-                "Expected optional type or void",
-                .{},
-            );
-        }
-
-        function_typedef.resolved_type.?.Function.yield_type = yield_type;
+        function_typedef.resolved_type.?.Function.yield_type = self.ast.nodes.items(.type_def)[yield_type_node].?;
 
         break :yield yield_type_node;
     } else null;
@@ -7355,8 +7269,8 @@ fn resumeFiber(self: *Self, _: bool) Error!Ast.Node.Index {
         } else {
             const fiber = fiber_type.?.resolved_type.?.Fiber;
 
-            // Resume returns null if nothing was yielded and/or fiber reached its return statement
-            self.ast.nodes.items(.type_def)[node] = fiber.yield_type;
+            // Resume returns null if nothing was yielded after the fiber was resumed.
+            self.ast.nodes.items(.type_def)[node] = try fiber.yield_type.cloneOptional(&self.gc.type_registry);
         }
     }
 
@@ -7610,7 +7524,7 @@ fn binary(self: *Self, _: bool, left: Ast.Node.Index) Error!Ast.Node.Index {
 
     const operator_token = self.current_token.? - 1;
     const operator = self.ast.tokens.items(.tag)[operator_token];
-    const rule = getRule(operator);
+    const rule = rules.get(operator);
 
     const right = try self.parsePrecedence(
         @enumFromInt(@intFromEnum(rule.precedence) + 1),
@@ -10627,7 +10541,16 @@ fn forEachStatement(self: *Self) Error!Ast.Node.Index {
 
     try self.consume(.In, "Expected `in` after `foreach` variables.");
 
-    // Local not usable by user but needed so that locals are correct
+    // Hidden foreach state always occupies the third slot. It is only read for
+    // map iteration, but keeping a fixed layout avoids per-iterable variants.
+    const map_index = try self.implicitVarDeclaration(
+        try self.insertUtilityToken(Token.identifier("$map_index"), true),
+        self.gc.type_registry.double_type,
+        false,
+        false,
+    );
+
+    // Local not usable by user but needed so that locals are correct.
     const iterable_slot = try self.addLocal(
         @intCast(node_slot),
         try self.insertUtilityToken(Token.identifier("$iterable"), true),
@@ -10738,6 +10661,7 @@ fn forEachStatement(self: *Self) Error!Ast.Node.Index {
                 .ForEach = .{
                     .key = key,
                     .value = value.?,
+                    .map_index = map_index,
                     .iterable = iterable,
                     .body = undefined,
                     .key_omitted = key_omitted,

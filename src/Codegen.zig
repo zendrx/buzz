@@ -108,73 +108,75 @@ debugging: bool,
 
 reporter: Reporter,
 
-const generators = [@typeInfo(Ast.Node.Tag).@"enum".fields.len]?NodeGen{
-    null, // AnonymousObjectType,
-    generateAnonymousEnumCase, // AnonymousEnumCase
-    generateAs, // As,
-    generateAsyncCall, // AsyncCall,
-    generateBinary, // Binary,
-    generateBlock, // Block,
-    generateBlockExpression, // BlockExpression,
-    generateBoolean, // Boolean,
-    generateBreak, // Break,
-    generateCall, // Call,
-    generateContinue, // Continue,
-    generateDot, // Dot,
-    generateDoUntil, // DoUntil,
-    generateEnum, // Enum,
-    generateExport, // Export,
-    generateExpression, // Expression,
-    null, // FiberType,
-    generateFloat, // Double,
-    generateFor, // For,
-    generateForceUnwrap, // ForceUnwrap,
-    generateForEach, // ForEach,
-    generateFunction, // Function,
-    null, // FunctionType,
-    generateFunDeclaration, // FunDeclaration,
-    generateGenericResolve, // GenericResolve,
-    null, // GenericResolveType,
-    null, // GenericType,
-    generateGrouping, // Grouping,
-    generateIf, // If,
-    generateImport, // Import,
-    generateInteger, // Integer,
-    generateIs, // Is,
-    generateList, // List,
-    null, // ListType,
-    generateMap, // Map,
-    null, // MapType,
-    generateMatch,
-    null, // Namespace,
-    generateNamedVariable, // NamedVariable,
-    generateNull, // Null,
-    generateObjectDeclaration, // ObjectDeclaration,
-    generateObjectInit, // ObjectInit,
-    generateOut, // Out,
-    generatePattern, // Pattern,
-    generateProtocolDeclaration, // ProtocolDeclaration,
-    generateRange, // Range,
-    generateResolve, // Resolve,
-    generateResume, // Resume,
-    generateReturn, // Return,
-    null, // SimpleType,
-    generateString, // String,
-    generateStringLiteral, // StringLiteral,
-    generateSubscript, // Subscript,
-    generateThrow, // Throw,
-    generateTry, // Try,
-    generateTypeExpression, // TypeExpression,
-    generateTypeOfExpression, // TypeOfExpression,
-    generateUnary, // Unary,
-    generateUnwrap, // Unwrap,
-    null, // UserType,
-    generateVarDeclaration, // VarDeclaration,
-    generateVoid, // Void,
-    generateWhile, // While,
-    generateYield, // Yield,
-    generateZdef, // Zdef,
-};
+const generators = std.EnumArray(Ast.Node.Tag, ?NodeGen).init(
+    .{
+        .AnonymousObjectType = null,
+        .AnonymousEnumCase = generateAnonymousEnumCase,
+        .As = generateAs,
+        .AsyncCall = generateAsyncCall,
+        .Binary = generateBinary,
+        .Block = generateBlock,
+        .BlockExpression = generateBlockExpression,
+        .Boolean = generateBoolean,
+        .Break = generateBreak,
+        .Call = generateCall,
+        .Continue = generateContinue,
+        .Dot = generateDot,
+        .DoUntil = generateDoUntil,
+        .Enum = generateEnum,
+        .Export = generateExport,
+        .Expression = generateExpression,
+        .FiberType = null,
+        .Double = generateFloat,
+        .For = generateFor,
+        .ForceUnwrap = generateForceUnwrap,
+        .ForEach = generateForEach,
+        .Function = generateFunction,
+        .FunctionType = null,
+        .FunDeclaration = generateFunDeclaration,
+        .GenericResolve = generateGenericResolve,
+        .GenericResolveType = null,
+        .GenericType = null,
+        .Grouping = generateGrouping,
+        .If = generateIf,
+        .Import = generateImport,
+        .Integer = generateInteger,
+        .Is = generateIs,
+        .List = generateList,
+        .ListType = null,
+        .Map = generateMap,
+        .MapType = null,
+        .Match = generateMatch,
+        .Namespace = null,
+        .NamedVariable = generateNamedVariable,
+        .Null = generateNull,
+        .ObjectDeclaration = generateObjectDeclaration,
+        .ObjectInit = generateObjectInit,
+        .Out = generateOut,
+        .Pattern = generatePattern,
+        .ProtocolDeclaration = generateProtocolDeclaration,
+        .Range = generateRange,
+        .Resolve = generateResolve,
+        .Resume = generateResume,
+        .Return = generateReturn,
+        .SimpleType = null,
+        .String = generateString,
+        .StringLiteral = generateStringLiteral,
+        .Subscript = generateSubscript,
+        .Throw = generateThrow,
+        .Try = generateTry,
+        .TypeExpression = generateTypeExpression,
+        .TypeOfExpression = generateTypeOfExpression,
+        .Unary = generateUnary,
+        .Unwrap = generateUnwrap,
+        .UserType = null,
+        .VarDeclaration = generateVarDeclaration,
+        .Void = generateVoid,
+        .While = generateWhile,
+        .Yield = generateYield,
+        .Zdef = generateZdef,
+    },
+);
 
 pub fn init(
     process: Init,
@@ -591,7 +593,7 @@ fn generateNode(self: *Self, node: Ast.Node.Index, breaks: ?*Breaks) Error!Gener
     }
 
     const tag = self.ast.nodes.items(.tag)[node];
-    const generator = Self.generators[@intFromEnum(tag)] orelse return .{};
+    const generator = Self.generators.get(tag) orelse return .{};
 
     const nearest_candidate = if (self.complexity_stack.items.len > 0)
         self.complexity_stack.items[self.complexity_stack.items.len - 1].nearest_candidate
@@ -1081,8 +1083,8 @@ fn generateCall(self: *Self, node: Ast.Node.Index, breaks: ?*Breaks) Error!Gener
         switch (current_function_type) {
             // Even though a function can call a yieldable function without wrapping it in a fiber, the function itself could be called in a fiber
             .Function, .Method, .Anonymous => {
-                // `void?` is used by inferred function types but does not carry a yielded value.
-                const compatible_void_yield = current_function_yield_type.def_type == .Void and yield_type.def_type == .Void;
+                // Non-yielding callees are always valid inside a yielding function.
+                const compatible_void_yield = yield_type.def_type == .Void;
 
                 if (!compatible_void_yield and !current_function_yield_type.strictEql(yield_type)) {
                     self.reporter.reportTypeCheck(
@@ -1994,10 +1996,24 @@ fn generateForEach(self: *Self, node: Ast.Node.Index, breaks: ?*Breaks) Error!Ge
             }
         }
     }
-
     _ = try self.generateNode(components.key, breaks);
     _ = try self.generateNode(components.value, breaks);
+    _ = try self.generateNode(components.map_index, breaks);
     _ = try self.generateNode(components.iterable, breaks);
+
+    if (iterable_type_def.def_type == .Map) {
+        // Map foreach uses a hidden local to track the current key index. Start
+        // at -1 so the first iteration advances to index 0.
+        try self.emitConstant(
+            locations[node],
+            Value.fromDouble(-1),
+        );
+        try self.OP_SET_LOCAL(
+            locations[node],
+            @intCast(node_components[components.map_index].VarDeclaration.slot),
+        );
+        try self.OP_POP(locations[node]);
+    }
 
     const loop_start: usize = self.currentCode();
     const jit_jump = if (!is_wasm) try self.emitJump(locations[node], .OP_HOTSPOT) else {};
@@ -2020,7 +2036,7 @@ fn generateForEach(self: *Self, node: Ast.Node.Index, breaks: ?*Breaks) Error!Ge
         },
     );
 
-    // If next key is null, exit loop
+    // If the iteration state slot is the sentinel, exit the loop
     try self.OP_GET_LOCAL(
         locations[node],
         @intCast(
@@ -2030,7 +2046,7 @@ fn generateForEach(self: *Self, node: Ast.Node.Index, breaks: ?*Breaks) Error!Ge
             },
         ),
     );
-    try self.OP_NULL(locations[node]);
+    try self.OP_SENTINEL(locations[node]);
     try self.OP_EQUAL(locations[node]);
     try self.OP_NOT(locations[node]);
     const exit_jump: usize = try self.OP_JUMP_IF_FALSE(locations[node]);
@@ -2057,9 +2073,10 @@ fn generateForEach(self: *Self, node: Ast.Node.Index, breaks: ?*Breaks) Error!Ge
     );
 
     try self.patchOptJumps(node);
-    // Should have key, [value,] iterable to pop
+    // Foreach always reserves key, value, hidden state, and iterable slots.
     std.debug.assert(
-        self.ast.nodes.items(.ends_scope)[node] != null and self.ast.nodes.items(.ends_scope)[node].?.len == 3,
+        self.ast.nodes.items(.ends_scope)[node] != null and
+            self.ast.nodes.items(.ends_scope)[node].?.len == 4,
     );
     try self.endScope(node);
 
@@ -3861,6 +3878,10 @@ fn OP_HOTSPOT(self: *Self, location: Ast.TokenIndex) !usize {
 
 fn OP_NULL(self: *Self, location: Ast.TokenIndex) !void {
     try self.emitOpCode(location, .OP_NULL);
+}
+
+fn OP_SENTINEL(self: *Self, location: Ast.TokenIndex) !void {
+    try self.emitOpCode(location, .OP_SENTINEL);
 }
 
 fn OP_VOID(self: *Self, location: Ast.TokenIndex) !void {
