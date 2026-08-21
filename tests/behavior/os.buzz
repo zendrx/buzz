@@ -19,7 +19,7 @@ test "tmpDir" {
 }
 
 test "tmpFilename" {
-    std\assert(os\tmpFilename("buzz_test") != "", message: "Got tmp file name");
+    std\assert(os\tmpFilename("buzz_test") != "", message: "Got tmp file name);
 }
 
 test "execute" {
