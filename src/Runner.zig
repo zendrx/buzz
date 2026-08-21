@@ -204,10 +204,17 @@ pub fn runFile(
             var arena = std.heap.ArenaAllocator.init(runner.gc.allocator);
             defer arena.deinit();
 
-            var stdout = bz_io.stdoutWriter(runner.process.io);
+            //used filez to prevent overshadow ig
+            var filez = if (std.fs.path.isAbsolute(file_name))
+                try std.Io.Dir.openFileAbsolute(runner.process.io, file_name, .{ .mode = .write_only })
+            else
+                try std.Io.Dir.cwd().openFile(runner.process.io, file_name, .{ .mode = .write_only });
+            defer file.close(runner.process.io);
+            var buffer: [255]u8 = undefined;
+            var file_writer = filez.writer(runner.process.io, &buffer);
             try Renderer.render(
                 arena.allocator(),
-                &stdout.interface,
+                &file_writer.interface,
                 ast,
                 runner.renderer_options,
             );
