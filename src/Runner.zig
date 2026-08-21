@@ -157,6 +157,7 @@ pub fn runFile(
     provided_root_dir: ?[]const u8,
     file_name: []const u8,
     args: []const []const u8,
+    in_place: bool,
 ) !u8 {
     var file_io_scope = Perf.start(runner.perf, .file_io);
     defer file_io_scope.end();
@@ -204,20 +205,30 @@ pub fn runFile(
             var arena = std.heap.ArenaAllocator.init(runner.gc.allocator);
             defer arena.deinit();
 
-            //used filez to prevent overshadow ig
-            var filez = if (std.fs.path.isAbsolute(file_name))
-                try std.Io.Dir.openFileAbsolute(runner.process.io, file_name, .{ .mode = .write_only })
-            else
-                try std.Io.Dir.cwd().openFile(runner.process.io, file_name, .{ .mode = .write_only });
-            defer file.close(runner.process.io);
-            var buffer: [255]u8 = undefined;
-            var file_writer = filez.writer(runner.process.io, &buffer);
-            try Renderer.render(
-                arena.allocator(),
-                &file_writer.interface,
-                ast,
-                runner.renderer_options,
-            );
+            if (in_place) {
+                //used filez to prevent overshadow ig
+                var filez = if (std.fs.path.isAbsolute(file_name))
+                    try std.Io.Dir.openFileAbsolute(runner.process.io, file_name, .{ .mode = .write_only })
+                else
+                    try std.Io.Dir.cwd().openFile(runner.process.io, file_name, .{ .mode = .write_only });
+                defer file.close(runner.process.io);
+                var buffer: [255]u8 = undefined;
+                var file_writer = filez.writer(runner.process.io, &buffer);
+                try Renderer.render(
+                    arena.allocator(),
+                    &file_writer.interface,
+                    ast,
+                    runner.renderer_options,
+                );
+            } else {
+                var stdout = bz_io.stdoutWriter(runner.process.io);
+                try Renderer.render(
+                    arena.allocator(),
+                    &stdout.interface,
+                    ast,
+                    runner.renderer_options,
+                );
+            }
         }
     } else {
         return Parser.CompileError.Recoverable;
